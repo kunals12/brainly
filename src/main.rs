@@ -20,7 +20,7 @@ async fn main() -> std::io::Result<()> {
             .route("/api/v1/signin", post().to(User::signin_user))
             .route("/api/v1/content", post().to(Content::create_content))
             .route("/api/v1/user/content", get().to(Content::get_all_content))
-            // .route("/api/v1/content", delete().to(handler))
+            .route("/api/v1/content/{id}", delete().to(Content::delete_content))
             // .route("/api/v1/brain/share", post().to(handler))
             // .route("/api/v1/brain/:shareLink", get().to(handler))
     })

@@ -1,4 +1,4 @@
-use super::{user::PublicUser, SuccessResponse};
+use super::SuccessResponse;
 use actix_web::{
     cookie::time::{Duration, OffsetDateTime}, // Used for handling token expiration time
     HttpRequest, HttpResponse

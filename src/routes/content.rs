@@ -1,16 +1,16 @@
 use std::str::FromStr;
 
 use actix_web::{
-    web::{Data, Json},
+    web::{Data, Json, Path},
     HttpRequest, HttpResponse, Responder,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{prelude::FromRow, Error, MySqlPool};
+use sqlx::{prelude::FromRow, MySqlPool};
 use strum_macros::{Display, EnumString};
 
 use crate::routes::utils::generate_random_string;
 
-use super::{jwt::validate_token, SuccessResponse};
+use super::{jwt::validate_token, user, SuccessResponse};
 
 #[derive(Serialize, Deserialize, Debug, Display, EnumString)]
 #[strum(serialize_all = "PascalCase")]
@@ -100,7 +100,7 @@ impl Content {
                                 title: content.title.clone(),
                             }),
                         })
-                    },
+                    }
                     Err(e) => {
                         HttpResponse::InternalServerError().body(format!("Database error: {}", e))
                     }
@@ -125,18 +125,26 @@ impl Content {
 
                 match content {
                     Ok(rows) => {
-                        let contents: Vec<UserContents> = rows.into_iter().filter_map(|(id, title, type_, link)| {
-                            if let Ok(type_enum) = ContentType::from_str(&type_) {
-                                Some(UserContents {id, title, type_: type_enum, link })
-                            } else {
-                                None
-                            }
-                        }).collect();
+                        let contents: Vec<UserContents> = rows
+                            .into_iter()
+                            .filter_map(|(id, title, type_, link)| {
+                                if let Ok(type_enum) = ContentType::from_str(&type_) {
+                                    Some(UserContents {
+                                        id,
+                                        title,
+                                        type_: type_enum,
+                                        link,
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
 
                         HttpResponse::Ok().json(SuccessResponse {
                             success: true,
                             message: "Content fetch successfully".to_string(),
-                            data: Some(contents)
+                            data: Some(contents),
                         })
                     }
                     Err(err) => HttpResponse::InternalServerError().json(SuccessResponse::<()> {
@@ -150,5 +158,46 @@ impl Content {
         }
     }
 
-    fn delete_content() {}
+    pub async fn delete_content(
+        db: Data<MySqlPool>,
+        params: Path<i32>, // Content ID from path
+        req: HttpRequest,  // Request to validate token
+    ) -> impl Responder {
+        let token_data = validate_token(req).await;
+
+        match token_data {
+            Ok(user_id) => {
+                // Run DELETE query
+                let response = sqlx::query("DELETE FROM contents WHERE id = ? AND user_id = ?")
+                    .bind(params.into_inner()) // Content ID
+                    .bind(user_id) // User ID
+                    .execute(&**db) // Execute query
+                    .await;
+
+                match response {
+                    Ok(result) => {
+                        if result.rows_affected() > 0 {
+                            HttpResponse::Ok().json(SuccessResponse::<()> {
+                                success: true,
+                                message: "Content Deleted".to_string(),
+                                data: None,
+                            })
+                        } else {
+                            HttpResponse::NotFound().json(SuccessResponse::<()> {
+                                success: false,
+                                message: "Content not found or not owned by user".to_string(),
+                                data: None,
+                            })
+                        }
+                    }
+                    Err(e) => HttpResponse::InternalServerError().json(SuccessResponse::<()> {
+                        success: false,
+                        message: e.to_string(),
+                        data: None,
+                    }),
+                }
+            }
+            Err(e) => e, // Return validation error response
+        }
+    }
 }
