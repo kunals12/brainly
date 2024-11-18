@@ -1,8 +1,7 @@
-use super::user::PublicUser;
+use super::{user::PublicUser, SuccessResponse};
 use actix_web::{
     cookie::time::{Duration, OffsetDateTime}, // Used for handling token expiration time
-    Error,
-    HttpRequest, HttpResponse, Responder,
+    HttpRequest, HttpResponse
 };
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use serde::{Deserialize, Serialize}; // PublicUser struct is imported from the user module
@@ -10,7 +9,7 @@ use serde::{Deserialize, Serialize}; // PublicUser struct is imported from the u
 // Structure representing JWT Claims (Payload)
 #[derive(Serialize, Debug, Deserialize)]
 pub struct Claims {
-    sub: PublicUser, // Subject: Holds user information (ID and username)
+    sub: i32, // Subject: Holds user information (ID and username)
     exp: usize,      // Expiry time: When the token expires (in seconds since epoch)
 }
 
@@ -21,24 +20,21 @@ const SECRET_KEY: &[u8] = b"my_super_secret_key"; // Use environment variables i
 // Implementation of the Claims struct
 impl Claims {
     /// Constructor for Claims
-    pub fn new(sub: PublicUser, exp: usize) -> Claims {
+    pub fn new(sub: i32, exp: usize) -> Claims {
         Claims { sub, exp }
     }
 }
 
 // Function to generate a JWT token
-pub fn generate_token(public_user: PublicUser) -> String {
-    // Extract user ID and username for the token payload
-    let id = public_user.id;
-    let username = public_user.username;
+pub fn generate_token(id: i32) -> String {
 
     // Calculate expiration time (current time + 2 hours)
     let expiration = OffsetDateTime::now_utc() + Duration::hours(2);
 
     // Create a Claims instance
     let claims = Claims::new(
-        PublicUser { id, username },          // Add user info to the payload
-        expiration.unix_timestamp() as usize, // Set the token expiration time
+        id,          // Add user info to the payload
+        expiration.unix_timestamp() as usize // Set the token expiration time
     );
 
     // Encode the Claims into a JWT token
@@ -59,12 +55,34 @@ fn verify_token(token: &str) -> Result<TokenData<Claims>, jsonwebtoken::errors::
     )
 }
 
-pub async fn validate_token(req: HttpRequest) -> impl Responder {
+
+// Middleware-like function to validate token and extract user data
+pub async fn validate_token(req: HttpRequest) -> Result<i32, HttpResponse> {
     if let Some(cookie) = req.cookie("auth_token") {
-        let token = cookie.value(); // Get the token from the cookie
-        if let Ok(_) = verify_token(token) {
-            return HttpResponse::Ok().body("Access granted");
+        let token = cookie.value();
+        println!("{}", token);
+        let verified_token = verify_token(token);
+        println!("{:?}", verified_token);
+        match verified_token {
+            Ok(data) => {
+                let user_id = data.claims.sub;
+                Ok(user_id) // Return user ID and username
+            }
+            Err(e) => {
+                // Handle invalid token
+                Err(HttpResponse::Unauthorized().json(SuccessResponse::<()> {
+                    success: false,
+                    message: format!("Invalid token: {}", e), // Serialize the error
+                    data: None,
+                }))
+            }
         }
+    } else {
+        // Handle missing token
+        Err(HttpResponse::Unauthorized().json(SuccessResponse::<()> {
+            success: false,
+            message: "Missing token".to_string(),
+            data: None,
+        }))
     }
-    HttpResponse::Unauthorized().body("Invalid or missing token")
 }

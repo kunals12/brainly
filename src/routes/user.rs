@@ -35,7 +35,7 @@ impl User {
         let is_user_exists = Self::check_user_exists(db.clone(), &user.username).await;
 
         if is_user_exists {
-            return HttpResponse::Conflict().json(SuccessResponse {
+            return HttpResponse::Conflict().json(SuccessResponse::<()> {
                 success: false,
                 message: "User Already Exists".to_string(),
                 data: None
@@ -56,7 +56,7 @@ impl User {
                 message: "User Created".to_string(),
                 data: Some(data.last_insert_id().to_string())
             }),
-            Err(err) => HttpResponse::InternalServerError().json(SuccessResponse {
+            Err(err) => HttpResponse::InternalServerError().json(SuccessResponse::<()> {
                 success: false,
                 message: err.to_string(),
                 data: None
@@ -77,17 +77,14 @@ impl User {
             Ok(user) => {
                 let is_password_correct = verify_password(&body.password, &user.password);
                 if !is_password_correct {
-                    return HttpResponse::BadRequest().json(SuccessResponse {
+                    return HttpResponse::BadRequest().json(SuccessResponse::<()> {
                         success: false,
                         message: "Incorrect Password".to_string(),
                         data: None
                     });
                 }
 
-                let token = generate_token(PublicUser {
-                    id: user.id,
-                    username: user.username,
-                });
+                let token = generate_token(user.id);
 
                 let cookie = Cookie::build("auth_token", &token)
                     .path("/")
@@ -102,7 +99,7 @@ impl User {
                     data: Some(token)
                  })
             }
-            Err(_) => HttpResponse::NotFound().json(SuccessResponse {
+            Err(_) => HttpResponse::NotFound().json(SuccessResponse::<()> {
                 success: false,
                 message: "User Not Found".to_string(),
                 data: None

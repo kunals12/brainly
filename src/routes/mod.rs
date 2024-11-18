@@ -7,8 +7,8 @@ pub use content::Content;
 pub mod jwt;
 
 #[derive(Serialize)]
-pub struct SuccessResponse {
+pub struct SuccessResponse<T> {
     success: bool,
     message: String,
-    data: Option<String>,
+    data: Option<T>,
 }
