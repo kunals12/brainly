@@ -1,16 +1,17 @@
+use super::user::PublicUser;
 use actix_web::{
     cookie::time::{Duration, OffsetDateTime}, // Used for handling token expiration time
-    Error, HttpRequest,
+    Error,
+    HttpRequest, HttpResponse, Responder,
 };
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
-use serde::{Deserialize, Serialize};
-use super::user::PublicUser; // PublicUser struct is imported from the user module
+use serde::{Deserialize, Serialize}; // PublicUser struct is imported from the user module
 
 // Structure representing JWT Claims (Payload)
 #[derive(Serialize, Debug, Deserialize)]
 pub struct Claims {
-    sub: PublicUser,    // Subject: Holds user information (ID and username)
-    exp: usize          // Expiry time: When the token expires (in seconds since epoch)
+    sub: PublicUser, // Subject: Holds user information (ID and username)
+    exp: usize,      // Expiry time: When the token expires (in seconds since epoch)
 }
 
 // Secret key for signing and verifying JWT tokens
@@ -36,39 +37,34 @@ pub fn generate_token(public_user: PublicUser) -> String {
 
     // Create a Claims instance
     let claims = Claims::new(
-        PublicUser { id, username },               // Add user info to the payload
-        expiration.unix_timestamp() as usize,     // Set the token expiration time
+        PublicUser { id, username },          // Add user info to the payload
+        expiration.unix_timestamp() as usize, // Set the token expiration time
     );
 
     // Encode the Claims into a JWT token
-    encode(&Header::default(), &claims, &EncodingKey::from_secret(SECRET_KEY))
-        .expect("Error generating token") // Panic if token generation fails
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(SECRET_KEY),
+    )
+    .expect("Error generating token") // Panic if token generation fails
 }
 
 // Function to validate (verify) a JWT token
 fn verify_token(token: &str) -> Result<TokenData<Claims>, jsonwebtoken::errors::Error> {
     decode(
         token,
-        &DecodingKey::from_secret(SECRET_KEY),    // Decode using the same secret key
-        &Validation::default(),                   // Use default validation (e.g., check expiry)
+        &DecodingKey::from_secret(SECRET_KEY), // Decode using the same secret key
+        &Validation::default(),                // Use default validation (e.g., check expiry)
     )
 }
 
-// Middleware to validate JWT token for protected routes
-pub async fn validate_token(req: HttpRequest) -> Result<(), Error> {
-    // Check if Authorization header is present
-    if let Some(auth_header) = req.headers().get("Authorization") {
-        // Convert the header to a string
-        if let Ok(auth_str) = auth_header.to_str() {
-            // Strip the "Bearer " prefix to extract the token
-            if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                // Verify the token
-                if verify_token(token).is_ok() {
-                    return Ok(()); // Token is valid
-                }
-            }
+pub async fn validate_token(req: HttpRequest) -> impl Responder {
+    if let Some(cookie) = req.cookie("auth_token") {
+        let token = cookie.value(); // Get the token from the cookie
+        if let Ok(_) = verify_token(token) {
+            return HttpResponse::Ok().body("Access granted");
         }
     }
-    // Return an error if token is missing or invalid
-    Err(actix_web::error::ErrorUnauthorized("Invalid Token"))
+    HttpResponse::Unauthorized().body("Invalid or missing token")
 }
