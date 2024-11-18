@@ -1,8 +1,9 @@
 pub mod user;
-pub use user::{create_user, signin_user};
+pub use user::User;
 pub use serde::{Deserialize, Serialize};
 pub mod utils;
-// pub use utils::*;
+pub mod content;
+pub use content::Content;
 
 // Struct to send error messages in JSON format if a database error occurs
 #[derive(Serialize, Deserialize)]

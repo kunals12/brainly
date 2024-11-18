@@ -1,6 +1,6 @@
-use actix_web::{web::Data, App, HttpServer};
+use actix_web::{web::{delete, get, post, Data}, App, HttpServer};
 mod routes;
-use routes::*;
+use routes::{Content, User};
 mod database;
 use database::database_connetion;
 
@@ -16,8 +16,13 @@ async fn main() -> std::io::Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .app_data(Data::new(database.clone()))
-            .service(create_user)
-            .service(signin_user)
+            .route("/api/v1/signup", post().to(User::create_user))
+            .route("/api/v1/signin", post().to(User::signin_user))
+            // .route("/api/v1/content", post().to(Content::create_content))
+            // .route("/api/v1/content", get().to(handler))
+            // .route("/api/v1/content", delete().to(handler))
+            // .route("/api/v1/brain/share", post().to(handler))
+            // .route("/api/v1/brain/:shareLink", get().to(handler))
     })
     .bind(("127.0.0.1", PORT))?
     .run();
