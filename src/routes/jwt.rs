@@ -60,9 +60,7 @@ fn verify_token(token: &str) -> Result<TokenData<Claims>, jsonwebtoken::errors::
 pub async fn validate_token(req: HttpRequest) -> Result<i32, HttpResponse> {
     if let Some(cookie) = req.cookie("auth_token") {
         let token = cookie.value();
-        println!("{}", token);
         let verified_token = verify_token(token);
-        println!("{:?}", verified_token);
         match verified_token {
             Ok(data) => {
                 let user_id = data.claims.sub;
