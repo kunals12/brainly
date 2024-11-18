@@ -7,31 +7,36 @@ use actix_web::{
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, MySqlPool};
 
+use super::jwt::generate_token;
+
+#[derive(Deserialize)]
+pub struct CreateUser {
+    username: String,
+    password: String
+}
+
 #[derive(Serialize, Deserialize, FromRow)]
 pub struct User {
-    id: i32,      // Optional for cases like `CreateUser`
+    id: i32, // Optional for cases like `CreateUser`
     username: String,
     password: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug, Deserialize)]
 pub struct PublicUser {
-    id: i32,
-    username: String,
+    pub id: i32,
+    pub username: String,
 }
 
-// impl From<User> for PublicUser {
-//     fn from(user: User) -> Self {
-//         PublicUser {
-//             id: user.id.expect("ID should be present"),
-//             username: user.username,
-//         }
-//     }
-// }
+// Structure for user sign-in response
+#[derive(Serialize)]
+pub struct SigninUserResponse {
+    token: String, // Include the JWT token in the response
+}
 
 impl User {
     // Create a new user
-    pub async fn create_user(db: Data<MySqlPool>, user: Json<User>) -> impl Responder {
+    pub async fn create_user(db: Data<MySqlPool>, user: Json<CreateUser>) -> impl Responder {
         let is_user_exists = Self::check_user_exists(db.clone(), &user.username).await;
 
         if is_user_exists {
@@ -60,7 +65,7 @@ impl User {
     }
 
     // Sign in an existing user
-    pub async fn signin_user(db: Data<MySqlPool>, body: Json<User>) -> impl Responder {
+    pub async fn signin_user(db: Data<MySqlPool>, body: Json<CreateUser>) -> impl Responder {
         let response = sqlx::query_as::<_, User>(
             "SELECT id, username, password FROM users WHERE username = ?",
         )
@@ -76,10 +81,12 @@ impl User {
                         error: "Incorrect Password".to_string(),
                     });
                 }
-                HttpResponse::Ok().json(PublicUser {
+
+                let token = generate_token(PublicUser {
                     id: user.id,
-                    username: user.username
-                })
+                    username: user.username,
+                });
+                HttpResponse::Ok().json(SigninUserResponse { token })
             }
             Err(_) => HttpResponse::NotFound().json(TypeDbError {
                 error: "User Not Found".to_string(),
