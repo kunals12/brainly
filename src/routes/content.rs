@@ -10,7 +10,7 @@ use strum_macros::{Display, EnumString};
 
 use crate::routes::utils::generate_random_string;
 
-use super::{jwt::validate_token, user, SuccessResponse};
+use super::{jwt::validate_token, SuccessResponse};
 
 // Define the possible content types using an enum
 #[derive(Serialize, Deserialize, Debug, Display, EnumString)]
@@ -274,7 +274,7 @@ impl Content {
                             data: Some(content),
                         })
                     }
-                    Err(e) => {
+                    Err(_) => {
                         // If the content is not found, return a 404 Not Found response
                         HttpResponse::NotFound().json(SuccessResponse::<()> {
                             success: false,
